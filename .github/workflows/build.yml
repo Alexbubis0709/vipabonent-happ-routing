@@ -3,21 +3,19 @@ name: Build Happ routing
 on:
   workflow_dispatch:
   schedule:
-    - cron: "20 4 * * *"
+    - cron: "20 4 * * 1"
   push:
     branches: [main]
     paths:
       - "config/**"
       - "custom/**"
-      - "scripts/**"
-      - ".github/workflows/build.yml"
 
 permissions:
   contents: write
 
 concurrency:
   group: happ-routing-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -31,46 +29,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download current geo databases
-        id: geo
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p release HAPP
-
-          curl --fail --location --retry 3 --retry-delay 2 \
-            -o /tmp/geoip.dat \
-            https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
-
-          curl --fail --location --retry 3 --retry-delay 2 \
-            -o /tmp/geosite.dat \
-            https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat
-
-          test -s /tmp/geoip.dat
-          test -s /tmp/geosite.dat
-
-          changed=0
-          if ! cmp -s /tmp/geoip.dat release/geoip.dat 2>/dev/null; then
-            cp /tmp/geoip.dat release/geoip.dat
-            changed=1
-          fi
-          if ! cmp -s /tmp/geosite.dat release/geosite.dat 2>/dev/null; then
-            cp /tmp/geosite.dat release/geosite.dat
-            changed=1
-          fi
-
-          if [ "${GITHUB_EVENT_NAME}" != "schedule" ] || [ ! -f HAPP/ROUTING.JSON ]; then
-            changed=1
-          fi
-
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
-
       - name: Build Happ profile
-        if: steps.geo.outputs.changed == '1'
         run: python3 scripts/build_routing.py
 
       - name: Build QR code
-        if: steps.geo.outputs.changed == '1'
         run: |
           python3 -m pip install --quiet "qrcode[pil]"
           python3 - <<'PY'
@@ -81,13 +43,12 @@ jobs:
           PY
 
       - name: Commit refreshed files
-        if: steps.geo.outputs.changed == '1'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add release HAPP
+          git add HAPP
           if git diff --cached --quiet; then
             echo "Nothing changed"
             exit 0
