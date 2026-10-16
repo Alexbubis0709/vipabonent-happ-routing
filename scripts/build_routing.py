@@ -2,7 +2,6 @@
 import argparse
 import base64
 import json
-import os
 import time
 from pathlib import Path
 
@@ -29,18 +28,11 @@ def dedupe(values: list[str]) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--template", default="config/routing-template.json")
-    ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "Alexbubis0709/vipabonent-happ-routing"))
     ap.add_argument("--outdir", default="HAPP")
     ap.add_argument("--last-updated", default=str(int(time.time())))
     args = ap.parse_args()
 
-    if "/" not in args.repo:
-        raise SystemExit("--repo must be OWNER/REPO")
-
     cfg = json.loads(Path(args.template).read_text(encoding="utf-8"))
-    base = f"https://cdn.jsdelivr.net/gh/{args.repo}@main/release"
-    cfg["Geoipurl"] = f"{base}/geoip.dat"
-    cfg["Geositeurl"] = f"{base}/geosite.dat"
     cfg["LastUpdated"] = str(args.last_updated)
 
     cfg["DirectSites"] = dedupe(cfg.get("DirectSites", []) + read_lines("custom/direct-domains.txt", "domain:"))
